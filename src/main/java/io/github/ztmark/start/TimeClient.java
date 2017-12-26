@@ -48,7 +48,7 @@ public class TimeClient {
             if (in.readableBytes() < 4) {
                 return;
             }
-            out.add(in.readBytes(4));
+            out.add(new UnixTime(in.readUnsignedInt()));
         }
     }
 
@@ -95,12 +95,11 @@ public class TimeClient {
     static class TimeClientHandler extends ChannelInboundHandlerAdapter {
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            ByteBuf buf = (ByteBuf) msg;
+            UnixTime time = (UnixTime) msg;
             try {
-                final long millis = (buf.readUnsignedInt() - 2208988800L) * 1000L;
-                System.out.println(new Date(millis));
+                System.out.println(time);
             } finally {
-                buf.release();
+                ctx.close();
             }
         }
 
