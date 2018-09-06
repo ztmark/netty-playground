@@ -2,6 +2,7 @@ package io.github.ztmark.channel;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.TimeUnit;
@@ -23,6 +24,19 @@ public class SocketChannelDemo {
             TimeUnit.MILLISECONDS.sleep(10);
         }
         doWrite(client);
+
+        final ByteBuffer buffer = ByteBuffer.allocate(128);
+
+        TimeUnit.SECONDS.sleep(1);
+
+        if (client.read(buffer) != -1) {
+            buffer.flip();
+            while (buffer.hasRemaining()) {
+                System.out.print((char) buffer.get());
+            }
+            buffer.clear();
+        }
+
         client.close();
 
     }
