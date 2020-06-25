@@ -2,14 +2,13 @@ package io.github.ztmark.old;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.SocketOption;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
-import java.nio.channels.Channel;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -24,8 +23,75 @@ public class PlainJavaNIOServer {
 
     public static void main(String[] args) {
 
-        select();
+//        select();
 
+        try {
+            ServerSocketChannel serverChannel = ServerSocketChannel.open();
+            for (SocketOption<?> option : serverChannel.supportedOptions()) {
+                System.out.println(option);
+            }
+
+            System.out.println(serverChannel.getLocalAddress());
+            NetworkInterface.networkInterfaces().flatMap(NetworkInterface::inetAddresses).forEach(System.out::println);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void clientSelect() {
+        try (Selector selector = Selector.open(); SocketChannel channel = SocketChannel.open()) {
+            if (selector.isOpen() && channel.isOpen()) {
+                channel.configureBlocking(false);
+                channel.setOption(StandardSocketOptions.SO_RCVBUF, 4 * 1024);
+                channel.setOption(StandardSocketOptions.SO_SNDBUF, 4 * 1024);
+                channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
+
+                channel.register(selector, SelectionKey.OP_CONNECT);
+                channel.connect(new InetSocketAddress("127.0.0.1", 8000));
+                System.out.println("connected to " + channel.getRemoteAddress());
+                while (selector.select(1000) > 0) {
+                    Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
+                    while (iterator.hasNext()) {
+                        SelectionKey key = iterator.next();
+                        iterator.remove();
+
+                        if (!key.isValid()) {
+                            continue;
+                        }
+                        try (SocketChannel sc = (SocketChannel) key.channel()) {
+                            if (sc.isConnected()) {
+                                if (sc.isConnectionPending()) {
+                                    sc.finishConnect();
+                                }
+
+                                int count = 4;
+                                ByteBuffer buffer = ByteBuffer.allocate(1024);
+                                while (sc.read(buffer) > -1) {
+                                    buffer.flip();
+                                    System.out.println(StandardCharsets.UTF_8.decode(buffer).toString());
+                                    if (buffer.hasRemaining()) {
+                                        buffer.compact();
+                                    } else {
+                                        buffer.clear();
+                                    }
+                                    if (count-- > 0) {
+                                        sc.write(ByteBuffer.wrap("Hello from client".getBytes(StandardCharsets.UTF_8)));
+                                    }
+                                }
+
+
+
+                            }
+                        }
+                    }
+                }
+
+
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private static void select() {
